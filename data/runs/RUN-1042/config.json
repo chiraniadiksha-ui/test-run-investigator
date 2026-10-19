@@ -1,0 +1,17 @@
+{
+  "run_id": "RUN-1042",
+  "test_name": "TCP_Download_Throughput",
+  "device_endpoint": {
+    "ip": "10.0.0.8",
+    "port": 5000
+  },
+  "traffic": {
+    "protocol": "TCP",
+    "direction": "download",
+    "duration_seconds": 60,
+    "configured_rate_limit_mbps": 50
+  },
+  "pass_criteria": {
+    "minimum_throughput_mbps": 100
+  }
+}

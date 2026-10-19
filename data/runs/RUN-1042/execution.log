@@ -1,0 +1,8 @@
+2026-10-18 11:00:00 INFO  run_id=RUN-1043 test_name=TCP_Download_Throughput
+2026-10-18 11:00:01 INFO  Device control endpoint: 10.0.0.8:5000
+2026-10-18 11:00:02 INFO  Device connection established
+2026-10-18 11:00:03 INFO  Device authentication successful
+2026-10-18 11:00:04 INFO  Traffic generation started: true
+2026-10-18 11:01:04 INFO  Traffic measurement completed
+2026-10-18 11:01:04 ERROR code=THROUGHPUT_BELOW_THRESHOLD Measured throughput: 42 Mbps; required minimum: 100 Mbps
+2026-10-18 11:01:05 INFO  Final run status: FAILED
