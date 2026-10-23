@@ -16,7 +16,7 @@ async def _fetch_run_config(run_id):
         args=[str(PROJECT_DIR / "mcp_server.py")],
     )
 
-    async with stdio_client(server_parameters) as (read, write):
+    async with stdio_client(server_parameters,errlog=sys.__stderr__,) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
 
@@ -57,7 +57,10 @@ async def _discover_tools():
         args=[str(PROJECT_DIR / "mcp_server.py")],
     )
 
-    async with stdio_client(server_parameters) as (read, write):
+    async with stdio_client(
+    server_parameters,
+    errlog=sys.__stderr__,
+) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
 

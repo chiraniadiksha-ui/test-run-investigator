@@ -3,6 +3,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from qdrant_client import QdrantClient, models
 from sentence_transformers import SentenceTransformer
+from settings import QDRANT_URL
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -39,7 +40,7 @@ def main():
     )
 
     # 3. Open a database stored on disk.
-    client = QdrantClient(path=str(DB_PATH))
+    client = QdrantClient(url=QDRANT_URL, timeout=30)
 
     try:
         # A collection holds vectors with the same dimensions.

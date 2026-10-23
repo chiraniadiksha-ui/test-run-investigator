@@ -1,0 +1,23 @@
+# Python environments and cache
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local model and vector database files
+.cache/
+models/
+vector_db/
+
+# Generated reports
+evaluation_results/
+reports/
+
+# macOS
+.DS_Store

@@ -1,8 +1,7 @@
 from pathlib import Path
-
-from sentence_transformers import SentenceTransformer
 import torch,json
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from settings import QDRANT_URL
 from qdrant_client import QdrantClient
 from mcp_tools_client import (
     get_run_config_via_mcp,
@@ -11,6 +10,7 @@ from mcp_tools_client import (
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
+_models=None
 
 
 def read_run_log(run_id):
@@ -37,7 +37,6 @@ def build_search_query(log_text):
 
 def retrieve_guides(query, embedding_model, top_k=1):
     """Search saved guide embeddings in local Qdrant."""
-    db_path = PROJECT_DIR / "vector_db"
     collection_name = "troubleshooting_guides"
 
     # Only the current failure query needs a new embedding.
@@ -46,7 +45,7 @@ def retrieve_guides(query, embedding_model, top_k=1):
         convert_to_numpy=True,
     )
 
-    client = QdrantClient(path=str(db_path))
+    client = QdrantClient(url=QDRANT_URL, timeout=30)
 
     try:
         if not client.collection_exists(collection_name):
@@ -76,29 +75,32 @@ def retrieve_guides(query, embedding_model, top_k=1):
     finally:
         client.close()
 
-def load_investigation_model():
-    model_id = "Qwen/Qwen3-4B"
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+def get_models():
+    # Import here so submitting a task doesn't load AI libraries.
+    global _models
 
-    print("\nLoading investigation model...")
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    if _models is None:
+        from sentence_transformers import SentenceTransformer
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        dtype=torch.float16,
-    ).to(device)
+        print("Loading models into this worker...")
 
-    model.eval()
+        
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
+        print("Loading embedding model")
+        embedding_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2",device=device)
 
-    return tokenizer, model, device
+        print("\nLoading investigation model...")
+        tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-4B")
+        model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-4B",dtype=torch.float16,).to(device)
+        model.eval()
+        _models=(tokenizer, model, embedding_model,device)
 
-def generate_investigation(run_id, log_text, retrieved_guides,loaded_model=None):
+    return _models
+
+def generate_investigation(run_id, log_text, retrieved_guides):
     # EXISTING: load the model and tokenizer once.
 
-    if loaded_model is None:
-        loaded_model = load_investigation_model()
-
-    tokenizer, model, device = loaded_model
+    tokenizer, model, embedding_model,device = get_models()
 
 
     # MOVED: our existing generation code is now reusable.
@@ -342,10 +344,7 @@ def main():
 
     # 3. Load the model that converts text into vectors.
     print("\nLoading embedding model...")
-    embedding_model = SentenceTransformer(
-        "sentence-transformers/all-MiniLM-L6-v2",
-        device="cpu",
-    )
+    tokenizer, model, embedding_model,device=get_models()
 
     # 4. Retrieve the closest matching guide.
     results = retrieve_guides(
