@@ -1,6 +1,14 @@
 from worker.celery_app import celery_app
 import re
+import logging
+from uuid import UUID
 
+from database.jobs import (
+    mark_job_running,
+    mark_job_succeeded,
+    mark_job_failed,
+)
+logger = logging.getLogger(__name__)
 
 @celery_app.task(name="worker.check_queue")
 def check_queue(message):
@@ -9,8 +17,7 @@ def check_queue(message):
         "processed_by": "celery_worker",
     }
 
-@celery_app.task(bind=True, name="worker.investigate_run")
-def investigate_run(self, run_id):
+def _run_investigation(self, run_id):
     if not isinstance(run_id, str) or not re.fullmatch(r"RUN-\d+", run_id):
         raise ValueError("Expected a run ID such as RUN-1042.")
 
@@ -63,3 +70,47 @@ def investigate_run(self, run_id):
         "run_id": run_id,
         "report_file": str(report_path.relative_to(PROJECT_DIR)),
     }
+
+
+@celery_app.task(bind=True, name="worker.investigate_run")
+def investigate_run(self, run_id):
+    job_id = UUID(self.request.id)
+
+    # This conditional update also prevents a second execution
+    # from claiming a job that is already running or finished.
+    job = mark_job_running(job_id)
+
+    if job is None:
+        raise RuntimeError(
+            f"Job {job_id} is missing or cannot transition to RUNNING."
+        )
+
+    try:
+        if job["run_id"] != run_id:
+            raise ValueError("Task run ID does not match the job record.")
+
+        result = _run_investigation(self, run_id)
+
+    except Exception as error:
+        try:
+            mark_job_failed(job_id, str(error))
+        except Exception:
+            logger.exception(
+                "Could not record failure for job %s",
+                job_id,
+            )
+
+        # Re-raise so Celery also records task failure.
+        raise
+
+    saved_job = mark_job_succeeded(
+        job_id,
+        report_file=result["report_file"],
+    )
+
+    if saved_job is None:
+        raise RuntimeError(
+            f"Could not transition job {job_id} to SUCCEEDED."
+        )
+
+    return result
