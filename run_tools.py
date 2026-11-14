@@ -1,36 +1,60 @@
 import json
 import re
 from pathlib import Path
+from uuid import UUID
 
 
 RUNS_DIR = Path(__file__).resolve().parent / "data" / "runs"
 
 
-def get_run_config(run_id):
-    """Read the saved configuration for one test run."""
+def get_run_config(run_id, job_id=None):
+    """Read configuration belonging to this investigation."""
 
-    # Accept run identifiers, not arbitrary file paths.
-    if not re.fullmatch(r"RUN-\d+", run_id):
+    if (
+        not isinstance(run_id, str)
+        or not re.fullmatch(r"RUN-[0-9]+", run_id)
+    ):
         return {
             "ok": False,
             "error": "Invalid run ID. Expected a value such as RUN-1042.",
         }
 
-    config_path = RUNS_DIR / run_id / "config.json"
+    project_dir = Path(__file__).resolve().parent
+
+    if job_id is not None:
+        try:
+            validated_job_id = UUID(str(job_id))
+        except ValueError:
+            return {
+                "ok": False,
+                "error": "Invalid job ID.",
+            }
+
+        config_path = (
+            project_dir
+            / "data"
+            / "jobs"
+            / str(validated_job_id)
+            / "config.json"
+        )
+    else:
+        # Preserve standalone sample-run behavior.
+        config_path = RUNS_DIR / run_id / "config.json"
 
     if not config_path.is_file():
         return {
             "ok": False,
-            "error": f"No configuration found for {run_id}.",
+            "error": "No saved configuration is available for this investigation.",
         }
 
     try:
-        with config_path.open(encoding="utf-8") as file:
-            config = json.load(file)
-    except (OSError, json.JSONDecodeError) as error:
+        config = json.loads(
+            config_path.read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError, RecursionError):
         return {
             "ok": False,
-            "error": f"Could not read configuration: {error}",
+            "error": "Could not read a valid configuration file.",
         }
 
     if not isinstance(config, dict) or config.get("run_id") != run_id:
@@ -41,11 +65,6 @@ def get_run_config(run_id):
 
     return {
         "ok": True,
-        "source": f"data/runs/{run_id}/config.json",
+        "source": str(config_path.relative_to(project_dir)),
         "data": config,
     }
-
-
-if __name__ == "__main__":
-    result = get_run_config("RUN-1042")
-    print(json.dumps(result, indent=2))

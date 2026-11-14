@@ -1,13 +1,11 @@
 from datetime import datetime
 
-from sentence_transformers import SentenceTransformer
-
 from investigate import (
     PROJECT_DIR,
     read_run_log,
-    build_search_query,
+    extract_log_observations,
     retrieve_guides,
-    load_investigation_model,
+    get_models,
     generate_investigation,
 )
 
@@ -21,31 +19,24 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=False)
 
     # Both models are loaded once, before processing the runs.
-    print("\nLoading embedding model...")
-    embedding_model = SentenceTransformer(
-        "sentence-transformers/all-MiniLM-L6-v2",
-        device="cpu",
-    )
-
-    loaded_model = load_investigation_model()
+    tokenizer, model, embedding_model, device = get_models()
 
     for run_id in run_ids:
         print(f"\nEvaluating: {run_id}")
 
         log_text = read_run_log(run_id)
-        query = build_search_query(log_text)
+        observations = extract_log_observations(log_text, tokenizer)
 
         guides = retrieve_guides(
-            query,
+            observations,
             embedding_model,
             top_k=1,
         )
 
         report = generate_investigation(
             run_id=run_id,
-            log_text=log_text,
+            log_text=observations,
             retrieved_guides=guides,
-            loaded_model=loaded_model,
         )
 
         report_path = output_dir / f"{run_id}.md"
@@ -57,7 +48,7 @@ def main():
         print(f"Saved report: {report_path}")
 
     print("\nReports saved for manual review.")
-    print("Compare them with expected_findings.md.")
+    print("Compare them with docs/expected_findings.md.")
 
 
 if __name__ == "__main__":

@@ -25,30 +25,35 @@ def _run_investigation(self, run_id):
     from investigate import (
         PROJECT_DIR,
         read_run_log,
-        build_search_query,
+        extract_log_observations,
         retrieve_guides,
         generate_investigation,
         get_models
     )
 
     # Check the input before loading expensive models.
-    log_text = read_run_log(run_id)
-    query = build_search_query(log_text)
+    job_id = UUID(self.request.id)
 
-    tokenizer, model, embedding_model,device= get_models()
+    log_text = read_run_log(
+        run_id=run_id,
+        job_id=job_id,
+    )
+
+    tokenizer, model, embedding_model, device = get_models()
+    observations = extract_log_observations(log_text, tokenizer)
 
     guides = retrieve_guides(
-        query,
+        observations,
         embedding_model,
         top_k=1,
     )
 
     report = generate_investigation(
         run_id=run_id,
-        log_text=log_text,
-        retrieved_guides=guides
+        log_text=observations,
+        retrieved_guides=guides,
+        job_id=job_id,
     )
-
     # Our existing function returns this prefix for invalid tool requests.
     # Raise an exception so Celery records FAILURE instead of SUCCESS.
     if report.startswith("Investigation stopped:"):
